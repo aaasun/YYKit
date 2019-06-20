@@ -1395,7 +1395,12 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
 
 /// Replace the range with the text, and change the `_selectTextRange`.
 /// The caller should make sure the `range` and `text` are valid before call this method.
-- (void)_replaceRange:(YYTextRange *)range withText:(NSString *)text notifyToDelegate:(BOOL)notify{
+- (void)_replaceRange:(YYTextRange *)range withText:(NSString *)text notifyToInputDelegate:(BOOL)notify {
+    if (notify) [_inputDelegate textWillChange:self];
+    NSRange newRange = NSMakeRange(range.asRange.location, text.length);
+    [_innerText replaceCharactersInRange:range.asRange withString:text];
+    [_innerText removeDiscontinuousAttributesInRange:newRange];
+    if (notify) [_inputDelegate textDidChange:self];
     if (NSEqualRanges(range.asRange, _selectedTextRange.asRange)) {
         if (notify) [_inputDelegate selectionWillChange:self];
         NSRange newRange = NSMakeRange(0, 0);
@@ -1441,11 +1446,11 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
             if (notify) [_inputDelegate selectionDidChange:self];
         }
     }
-    if (notify) [_inputDelegate textWillChange:self];
-    NSRange newRange = NSMakeRange(range.asRange.location, text.length);
-    [_innerText replaceCharactersInRange:range.asRange withString:text];
-    [_innerText removeDiscontinuousAttributesInRange:newRange];
-    if (notify) [_inputDelegate textDidChange:self];
+//    if (notify) [_inputDelegate textWillChange:self];
+//    NSRange newRange = NSMakeRange(range.asRange.location, text.length);
+//    [_innerText replaceCharactersInRange:range.asRange withString:text];
+//    [_innerText removeDiscontinuousAttributesInRange:newRange];
+//    if (notify) [_inputDelegate textDidChange:self];
 }
 
 /// Save current typing attributes to the attributes holder.
@@ -1488,21 +1493,31 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
 /// Parse text with `textParser` and update the _selectedTextRange.
 /// @return Whether changed (text or selection)
 - (BOOL)_parseText {
+    return [self _parseTextWithNotifyInputDelegate:YES];
+}
+
+/// Parse text with `textParser` and update the _selectedTextRange.
+/// @return Whether changed (text or selection)
+- (BOOL)_parseTextWithNotifyInputDelegate:(BOOL)notify {
     if (self.textParser) {
         YYTextRange *oldTextRange = _selectedTextRange;
         NSRange newRange = _selectedTextRange.asRange;
         
-        [_inputDelegate textWillChange:self];
+//        [_inputDelegate textWillChange:self];
+        if (notify) [_inputDelegate textWillChange:self];
         BOOL textChanged = [self.textParser parseText:_innerText selectedRange:&newRange];
-        [_inputDelegate textDidChange:self];
+//        [_inputDelegate textDidChange:self];
+        if (notify) [_inputDelegate textDidChange:self];
         
         YYTextRange *newTextRange = [YYTextRange rangeWithRange:newRange];
         newTextRange = [self _correctedTextRange:newTextRange];
         
         if (![oldTextRange isEqual:newTextRange]) {
-            [_inputDelegate selectionWillChange:self];
+//            [_inputDelegate selectionWillChange:self];
+            if (notify) [_inputDelegate selectionWillChange:self];
             _selectedTextRange = newTextRange;
-            [_inputDelegate selectionDidChange:self];
+//            [_inputDelegate selectionDidChange:self];
+            if (notify) [_inputDelegate selectionDidChange:self];
         }
         return textChanged;
     }
@@ -3193,7 +3208,9 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
         [self _saveToUndoStack];
         [self _resetRedoStack];
     }
-    [self replaceRange:_selectedTextRange withText:text];
+//    [self replaceRange:_selectedTextRange withText:text];
+    [self replaceRange:_selectedTextRange withText:text notifyInputDelegate:NO];
+
 }
 
 - (void)deleteBackward {
@@ -3208,10 +3225,10 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
         YYTextBinding *binding = [_innerText attribute:YYTextBindingAttributeName atIndex:range.location - 1 longestEffectiveRange:&effectiveRange inRange:NSMakeRange(0, _innerText.length)];
         if (binding && binding.deleteConfirm) {
             _state.deleteConfirm = YES;
-            [_inputDelegate selectionWillChange:self];
+//            [_inputDelegate selectionWillChange:self];
             _selectedTextRange = [YYTextRange rangeWithRange:effectiveRange];
             _selectedTextRange = [self _correctedTextRange:_selectedTextRange];
-            [_inputDelegate selectionDidChange:self];
+//            [_inputDelegate selectionDidChange:self];
             
             [self _updateOuterProperties];
             [self _updateSelectionView];
@@ -3230,7 +3247,9 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
         [self _saveToUndoStack];
         [self _resetRedoStack];
     }
-    [self replaceRange:[YYTextRange rangeWithRange:range] withText:@""];
+//    [self replaceRange:[YYTextRange rangeWithRange:range] withText:@""];
+    [self replaceRange:[YYTextRange rangeWithRange:range] withText:@"" notifyInputDelegate:NO];
+
 }
 
 #pragma mark - @protocol UITextInput
@@ -3249,10 +3268,10 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
     _state.deleteConfirm = NO;
     _state.typingAttributesOnce = NO;
     
-    [_inputDelegate selectionWillChange:self];
+//    [_inputDelegate selectionWillChange:self];
     _selectedTextRange = selectedTextRange;
     _lastTypeRange = _selectedTextRange.asRange;
-    [_inputDelegate selectionDidChange:self];
+//    [_inputDelegate selectionDidChange:self];
     
     [self _updateOuterProperties];
     [self _updateSelectionView];
@@ -3354,6 +3373,11 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
 }
 
 - (void)replaceRange:(YYTextRange *)range withText:(NSString *)text {
+    [self replaceRange:range withText:text notifyInputDelegate:YES];
+}
+
+- (void)replaceRange:(YYTextRange *)range withText:(NSString *)text notifyInputDelegate:(BOOL)notify {
+
     if (!range) return;
     if (!text) text = @"";
     if (range.asRange.length == 0 && text.length == 0) return;
@@ -3391,7 +3415,9 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
     [self _endTouchTracking];
     [self _hideMenu];
     
-    [self _replaceRange:range withText:text notifyToDelegate:YES];
+//    [self _replaceRange:range withText:text notifyToDelegate:YES];
+    [self _replaceRange:range withText:text notifyToInputDelegate:notify];
+
     if (useInnerAttributes) {
         [_innerText setAttributes:_typingAttributesHolder.attributes];
     } else if (applyTypingAttributes) {
@@ -3400,7 +3426,9 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
             [_innerText setAttribute:key value:obj range:newRange];
         }];
     }
-    [self _parseText];
+//    [self _parseText];
+    [self _parseTextWithNotifyInputDelegate:notify];
+
     [self _updateOuterProperties];
     [self _update];
     
