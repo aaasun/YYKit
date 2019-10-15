@@ -1929,6 +1929,25 @@ typedef NS_ENUM(NSUInteger, YYTextMoveDirection) {
     [self didChangeValueForKey:@"typingAttributes"];
 }
 
+- (void)addSubview:(UIView *)view{
+    
+    Class Cls_selectionGrabberDot = NSClassFromString(@"UISelectionGrabberDot");
+    if ([view isKindOfClass:[Cls_selectionGrabberDot class]]) {
+        view.backgroundColor = [UIColor clearColor];
+        view.tintColor = [UIColor clearColor];
+        view.size = CGSizeZero;
+    }
+    
+    Class Cls_selectionView = NSClassFromString(@"UITextSelectionView");
+    if ([view isKindOfClass:[Cls_selectionView class]]) {
+        view.backgroundColor = [UIColor clearColor];
+        view.tintColor = [UIColor clearColor];
+        view.hidden = YES;
+    }
+    
+    [super addSubview:view];
+}
+
 #pragma mark - Private Init
 
 - (void)_initTextView {
